@@ -1,0 +1,23 @@
+{
+  "short_name": "RYLI",
+  "name": "RYLI - Student AI Assistant",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "64x64",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#18181b",
+  "theme_color": "#18181b",
+  "display": "standalone",
+  "orientation": "portrait"
+}
