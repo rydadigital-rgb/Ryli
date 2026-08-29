@@ -274,16 +274,23 @@ export default function App() {
     setIsLoading(true);
 
     try {
+      // Build lightweight conversation history for Vercel transmission
+      // Only the active/latest message carries the base64 image data to stay strictly within Vercel's 4.5MB limit
+      const payloadMessages = updatedMessages.map((m, idx) => {
+        const isLatest = idx === updatedMessages.length - 1;
+        return {
+          role: m.role,
+          content: m.content,
+          attachments: isLatest ? m.attachments : (m.attachments ? m.attachments.map(a => ({ name: a.name, type: a.type, size: a.size, data: '' })) : undefined),
+        };
+      });
+
       // Make real call to server endpoint
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: updatedMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-            attachments: m.attachments,
-          })),
+          messages: payloadMessages,
           gradeLevel,
           studyMode,
           attachments,

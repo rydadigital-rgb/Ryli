@@ -203,3 +203,67 @@ export async function processAnyImageFile(file: File): Promise<OptimizedImageRes
     img.src = objectUrl;
   });
 }
+
+/**
+ * Ensures any base64 image data string is strictly converted within Vercel's transmission limit (<800KB)
+ * for fast, reliable vision and OCR recognition by Gemini.
+ */
+export async function ensureImageUnderVercelLimit(dataUrl: string, maxBytes: number = 750 * 1024): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+    return dataUrl;
+  }
+
+  const currentSize = estimateBase64Size(dataUrl);
+  if (currentSize <= maxBytes) {
+    return dataUrl;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const origWidth = img.naturalWidth || img.width;
+      const origHeight = img.naturalHeight || img.height;
+
+      // Scale to max 1600px for crisp reading
+      const MAX_DIM = 1600;
+      let targetWidth = origWidth;
+      let targetHeight = origHeight;
+
+      if (targetWidth > MAX_DIM || targetHeight > MAX_DIM) {
+        if (targetWidth > targetHeight) {
+          targetHeight = Math.round((targetHeight * MAX_DIM) / targetWidth);
+          targetWidth = MAX_DIM;
+        } else {
+          targetWidth = Math.round((targetWidth * MAX_DIM) / targetHeight);
+          targetHeight = MAX_DIM;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, targetWidth, targetHeight);
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+      const optimized = canvas.toDataURL('image/jpeg', 0.85);
+      resolve(optimized);
+    };
+
+    img.onerror = () => {
+      resolve(dataUrl);
+    };
+
+    img.src = dataUrl;
+  });
+}
+

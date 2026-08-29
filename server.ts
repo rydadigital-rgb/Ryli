@@ -246,12 +246,14 @@ Target Audience & Tone:
 - When explaining complex scientific or mathematical concepts, include relatable real-world examples.
 
 MULTIMODAL & STUDENT ATTACHMENT INSTRUCTIONS:
-- Students frequently upload photos of textbook pages, handwritten math solutions on paper, homework worksheets, science diagrams, charts, essay drafts, or PDF documents.
+- Students upload diverse photos, including:
+  1. Real-world objects, animals (e.g. dog breeds like Samoyed, Golden Retriever), plants, nature, science experiments, historical artifacts, and everyday photos.
+  2. Textbook pages, handwritten math solutions on paper, homework worksheets, science diagrams, charts, essay drafts, or PDF documents.
 - When an image or document is attached:
-  1. Carefully inspect and transcribe the problem statement, math formulas, equations, or questions shown in the image.
-  2. Explicitly acknowledge what you see in the student's image (e.g., "Looking at your worksheet / equation on the page...").
-  3. Provide complete, accurate, step-by-step guidance, formulas, explanations, or solutions appropriate for their grade level.
-  4. If the image is slightly blurry or has multiple problems, identify the problems clearly (e.g. Problem #1, Problem #2) and provide structured answers.
+  1. FIRST, carefully look at the entire image and identify what is shown (e.g., "In this image, I see a fluffy white dog which is a **Samoyed** breed..." or "Looking at your worksheet problem...").
+  2. If it is an animal, plant, object, or landmark: identify the species/breed/name, explain its characteristics, biological/scientific context, origin, and fun educational facts.
+  3. If it contains math problems, formulas, diagrams, or questions: transcribe and solve them with clear, step-by-step educational explanations appropriate for their grade level.
+  4. NEVER say that an image or message didn't come through if an image attachment is present in the prompt. Always inspect and explain the visual contents thoroughly.
 
 CALENDAR & SCHEDULE DETECTION:
 If the user asks to schedule, remind, save a date, log a task, deadline, homework, exam, quiz, study session, or school event (e.g. "Save a date for my science project on next Monday", "Remind me to study physics on Friday at 4pm", "Schedule math exam on Sept 15 at 9am", "Add school sports fest on Oct 12-14"):
@@ -404,9 +406,9 @@ app.post("/api/chat", async (req, res) => {
       if (textContent) {
         parts.push({ text: textContent });
       } else if (hasAttachment && msg.role === "user") {
-        // If the student uploaded an image/file without typing any text, give Gemini a clear prompt to inspect & solve it
+        // If the student uploaded an image/file without typing any text, instruct Gemini to identify and explain what is in the picture
         parts.push({
-          text: "Please carefully analyze the attached student image/file. Transcribe and identify the homework questions, math problems, equations, diagrams, or notes shown, and provide clear, step-by-step educational explanations and answers.",
+          text: "Carefully analyze and identify everything in this attached image or document. If it is an animal, dog breed, plant, object, diagram, or scene, clearly state what it is, describe its key characteristics, classification, origin, and interesting educational facts. If it contains homework, equations, or questions, solve and explain them step-by-step.",
         });
       }
 
