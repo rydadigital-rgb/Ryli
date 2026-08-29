@@ -57,7 +57,10 @@ export interface Attachment {
   name: string;
   type: string;
   data: string; // base64 data url or text
-  size?: number;
+  size?: number; // optimized size
+  originalSize?: number; // raw original file size
+  dimensions?: { width: number; height: number };
+  isOptimized?: boolean;
 }
 
 export interface QuizQuestion {
