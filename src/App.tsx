@@ -282,6 +282,7 @@ export default function App() {
           messages: updatedMessages.map((m) => ({
             role: m.role,
             content: m.content,
+            attachments: m.attachments,
           })),
           gradeLevel,
           studyMode,

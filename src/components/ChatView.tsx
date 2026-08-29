@@ -14,9 +14,11 @@ import {
   Share2, 
   Brain,
   Calendar as CalendarIcon,
-  Shuffle
+  Shuffle,
+  X,
+  Maximize2
 } from 'lucide-react';
-import { Message, StudyMode, GradeLevel, QuizQuestion, Flashcard, CalendarEvent } from '../types';
+import { Message, StudyMode, GradeLevel, QuizQuestion, Flashcard, CalendarEvent, Attachment } from '../types';
 import { RyliLogo } from './RyliLogo';
 import { RichContentRenderer } from '../utils/markdownRenderer';
 import { QUICK_STARTER_PROMPTS } from '../utils/themePresets';
@@ -51,6 +53,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Exactly 6 randomly chosen starter prompts on every page refresh/mount
@@ -210,18 +213,33 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {isUser && message.attachments && message.attachments.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3">
                   {message.attachments.map((att, i) => (
-                    <div key={i} className="rounded-xl overflow-hidden border border-white/20 bg-black/30 p-1">
+                    <div 
+                      key={i} 
+                      className="group relative rounded-xl overflow-hidden border border-white/20 bg-black/40 p-1 shadow-md transition-all hover:border-white/40"
+                    >
                       {att.type.startsWith('image/') ? (
-                        <img
-                          src={att.data}
-                          alt={att.name}
-                          className="max-h-40 rounded-lg object-contain"
-                          referrerPolicy="no-referrer"
-                        />
+                        <div 
+                          className="relative cursor-pointer"
+                          onClick={() => setPreviewImage({ src: att.data, title: att.name })}
+                        >
+                          <img
+                            src={att.data}
+                            alt={att.name}
+                            className="max-h-48 max-w-full sm:max-w-xs rounded-lg object-contain bg-zinc-950"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
+                            <span className="text-[11px] font-semibold text-white px-2 py-1 rounded bg-black/60 backdrop-blur-sm flex items-center gap-1">
+                              <Maximize2 className="w-3 h-3" /> View full
+                            </span>
+                          </div>
+                        </div>
                       ) : (
-                        <div className="flex items-center gap-2 p-2 text-xs">
-                          <FileText className="w-4 h-4" />
-                          <span>{att.name}</span>
+                        <div className="flex items-center gap-2 p-2.5 text-xs text-zinc-100 font-medium">
+                          <div className="p-1 rounded bg-white/20">
+                            <FileText className="w-4 h-4 text-white" />
+                          </div>
+                          <span className="truncate max-w-[180px]">{att.name}</span>
                         </div>
                       )}
                     </div>
@@ -231,7 +249,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
               {/* Text / Markdown Content */}
               {isUser ? (
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                message.content ? (
+                  <p className="whitespace-pre-wrap">{message.content}</p>
+                ) : (
+                  <p className="text-xs italic text-blue-200/90 flex items-center gap-1">
+                    📎 Attached student document / image for analysis
+                  </p>
+                )
               ) : (
                 <RichContentRenderer content={message.content} />
               )}
@@ -423,6 +447,42 @@ export const ChatView: React.FC<ChatViewProps> = ({
       )}
 
       <div ref={messagesEndRef} />
+
+      {/* Expanded Image Lightbox Modal */}
+      {previewImage && (
+        <div
+          id="image-preview-lightbox"
+          onClick={() => setPreviewImage(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex flex-col items-center justify-center p-4 animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-4xl max-h-[85vh] bg-zinc-950/90 border border-white/20 rounded-3xl p-3 sm:p-5 shadow-2xl flex flex-col items-center"
+          >
+            <div className="w-full flex items-center justify-between pb-3 mb-2 border-b border-white/10">
+              <span className="text-sm font-semibold text-white truncate max-w-md">
+                {previewImage.title || 'Student Document Preview'}
+              </span>
+              <button
+                type="button"
+                id="btn-close-image-preview"
+                onClick={() => setPreviewImage(null)}
+                className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-auto max-h-[70vh] flex items-center justify-center rounded-2xl bg-black/50 p-2">
+              <img
+                src={previewImage.src}
+                alt={previewImage.title}
+                className="max-h-[65vh] max-w-full object-contain rounded-xl"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

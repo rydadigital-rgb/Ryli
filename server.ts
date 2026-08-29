@@ -245,6 +245,14 @@ Target Audience & Tone:
 - Use clear formatting with Markdown headings, bullet points, and bold terms for readability.
 - When explaining complex scientific or mathematical concepts, include relatable real-world examples.
 
+MULTIMODAL & STUDENT ATTACHMENT INSTRUCTIONS:
+- Students frequently upload photos of textbook pages, handwritten math solutions on paper, homework worksheets, science diagrams, charts, essay drafts, or PDF documents.
+- When an image or document is attached:
+  1. Carefully inspect and transcribe the problem statement, math formulas, equations, or questions shown in the image.
+  2. Explicitly acknowledge what you see in the student's image (e.g., "Looking at your worksheet / equation on the page...").
+  3. Provide complete, accurate, step-by-step guidance, formulas, explanations, or solutions appropriate for their grade level.
+  4. If the image is slightly blurry or has multiple problems, identify the problems clearly (e.g. Problem #1, Problem #2) and provide structured answers.
+
 CALENDAR & SCHEDULE DETECTION:
 If the user asks to schedule, remind, save a date, log a task, deadline, homework, exam, quiz, study session, or school event (e.g. "Save a date for my science project on next Monday", "Remind me to study physics on Friday at 4pm", "Schedule math exam on Sept 15 at 9am", "Add school sports fest on Oct 12-14"):
 1. Acknowledge and encourage them warmly in your response text (e.g. "I've scheduled that for you in your calendar! 📅 Here are some study tips to prepare...").
@@ -272,6 +280,63 @@ At the very end of your response, provide 2 to 3 short, relevant follow-up study
 - Question 3
 [/FOLLOWUPS]`;
 };
+
+// Helper to convert any attachment (image, pdf, text file) into Gemini Part
+function parseAttachmentToPart(att: any) {
+  if (!att || !att.data || typeof att.data !== "string") return null;
+
+  try {
+    if (att.data.startsWith("data:")) {
+      const commaIndex = att.data.indexOf(",");
+      if (commaIndex === -1) return null;
+
+      const header = att.data.substring(0, commaIndex);
+      // Clean base64 string by removing all whitespace/newlines
+      const base64Data = att.data.substring(commaIndex + 1).replace(/\s+/g, "");
+      if (!base64Data) return null;
+
+      const mimeMatch = header.match(/data:([^;,]+)/);
+      let mimeType = mimeMatch ? mimeMatch[1].toLowerCase().trim() : (att.type || "image/jpeg").toLowerCase().trim();
+
+      // Normalize image MIME types
+      if (mimeType === "image/jpg") mimeType = "image/jpeg";
+
+      if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
+        return {
+          inlineData: {
+            mimeType,
+            data: base64Data,
+          },
+        };
+      } else if (mimeType.startsWith("text/") || mimeType.includes("json") || mimeType.includes("markdown")) {
+        try {
+          const decodedText = Buffer.from(base64Data, "base64").toString("utf-8");
+          return {
+            text: `[Attached File: ${att.name || "student_notes.txt"}]\n${decodedText}\n[End of File]`,
+          };
+        } catch {
+          return {
+            inlineData: {
+              mimeType: "text/plain",
+              data: base64Data,
+            },
+          };
+        }
+      } else {
+        // Default to image/jpeg or inline data fallback
+        return {
+          inlineData: {
+            mimeType: mimeType || "image/jpeg",
+            data: base64Data,
+          },
+        };
+      }
+    }
+  } catch (err) {
+    console.error("Error parsing attachment to part:", err);
+  }
+  return null;
+}
 
 // Main Chat Endpoint
 app.post("/api/chat", async (req, res) => {
@@ -304,25 +369,31 @@ app.post("/api/chat", async (req, res) => {
       const isLast = i === messages.length - 1;
       const parts: any[] = [];
 
-      // If last message has image attachments, attach inline data
-      if (isLast && attachments && attachments.length > 0) {
-        for (const att of attachments) {
-          if (att.data && att.data.startsWith("data:")) {
-            const matches = att.data.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-            if (matches && matches.length === 3) {
-              parts.push({
-                inlineData: {
-                  mimeType: matches[1],
-                  data: matches[2],
-                },
-              });
-            }
+      // Process attachments for this message (from msg.attachments or fallback to top-level attachments on last message)
+      const msgAttachments = (msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0)
+        ? msg.attachments
+        : (isLast && attachments && Array.isArray(attachments) ? attachments : []);
+
+      let hasAttachment = false;
+      if (msgAttachments && msgAttachments.length > 0) {
+        for (const att of msgAttachments) {
+          const part = parseAttachmentToPart(att);
+          if (part) {
+            parts.push(part);
+            hasAttachment = true;
           }
         }
       }
 
-      if (msg.content) {
-        parts.push({ text: msg.content });
+      // Add text content
+      const textContent = (msg.content || "").trim();
+      if (textContent) {
+        parts.push({ text: textContent });
+      } else if (hasAttachment && msg.role === "user") {
+        // If the student uploaded an image/file without typing any text, give Gemini a clear prompt to inspect & solve it
+        parts.push({
+          text: "Please carefully analyze the attached student image/file. Transcribe and identify the homework questions, math problems, equations, diagrams, or notes shown, and provide clear, step-by-step educational explanations and answers.",
+        });
       }
 
       if (parts.length > 0) {
@@ -331,6 +402,10 @@ app.post("/api/chat", async (req, res) => {
           parts: parts,
         });
       }
+    }
+
+    if (formattedContents.length === 0) {
+      return res.status(400).json({ error: "No valid message contents found" });
     }
 
     const response = await generateWithFallback(ai, {

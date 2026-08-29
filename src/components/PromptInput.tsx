@@ -12,7 +12,8 @@ import {
   Brain, 
   BookOpen, 
   CheckSquare, 
-  Layers 
+  Layers,
+  UploadCloud
 } from 'lucide-react';
 import { Attachment, StudyMode, GradeLevel } from '../types';
 
@@ -37,6 +38,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
@@ -104,29 +106,78 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
+  const processFiles = (files: FileList | File[]) => {
     Array.from(files).forEach((file: File) => {
       const reader = new FileReader();
       reader.onload = (uploadEvent) => {
         const dataUrl = uploadEvent.target?.result as string;
-        setAttachments((prev) => [
-          ...prev,
-          {
-            name: file.name,
-            type: file.type,
-            data: dataUrl,
-            size: file.size,
-          },
-        ]);
+        if (dataUrl) {
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name || 'uploaded_image.png',
+              type: file.type || 'image/jpeg',
+              data: dataUrl,
+              size: file.size,
+            },
+          ]);
+        }
       };
       reader.readAsDataURL(file);
     });
+  };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    processFiles(files);
     e.target.value = '';
     setShowToolsMenu(false);
+  };
+
+  // Support pasting images from clipboard (e.g. Snipping tool, screenshots, copied web images)
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    const items = clipboardData.items;
+    const pastedFiles: File[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1 || items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) {
+          pastedFiles.push(file);
+        }
+      }
+    }
+
+    if (pastedFiles.length > 0) {
+      processFiles(pastedFiles);
+    }
+  };
+
+  // Drag & drop support
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files);
+    }
   };
 
   const removeAttachment = (index: number) => {
@@ -138,6 +189,13 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     // Auto-resize
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const studyModeLabels: Record<StudyMode, { label: string; icon: any; color: string }> = {
@@ -154,17 +212,32 @@ export const PromptInput: React.FC<PromptInputProps> = ({
   const CurrentModeIcon = currentModeInfo.icon;
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-2.5 sm:px-4 relative z-20">
-      {/* Hidden file input */}
+    <div 
+      className="w-full max-w-4xl mx-auto px-2.5 sm:px-4 relative z-20"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Hidden file input with comprehensive image, document, and note format support */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,application/pdf,text/plain"
+        accept="image/*,application/pdf,text/plain,text/markdown,.csv,.py,.java,.cpp,.c,.js,.ts,.html,.css"
         onChange={handleFileUpload}
         className="hidden"
         id="file-upload-input"
       />
+
+      {/* Drag & Drop Visual Dropzone Overlay */}
+      {isDragging && (
+        <div className="absolute inset-x-4 -top-16 bottom-0 z-50 rounded-3xl border-2 border-dashed border-blue-400 bg-blue-950/80 backdrop-blur-md flex items-center justify-center pointer-events-none animate-fadeIn">
+          <div className="flex items-center gap-3 text-white font-medium">
+            <UploadCloud className="w-6 h-6 text-blue-400 animate-bounce" />
+            <span>Drop your homework photo, worksheet, or notes here!</span>
+          </div>
+        </div>
+      )}
 
       {/* Tools Quick Menu Popover */}
       {showToolsMenu && (
@@ -180,15 +253,18 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           <div className="py-1 space-y-1">
             <button
               id="tool-attach-photo"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                fileInputRef.current?.click();
+                setShowToolsMenu(false);
+              }}
               className="w-full px-3 py-2 rounded-xl text-left text-xs sm:text-sm font-medium text-zinc-200 hover:bg-white/10 flex items-center gap-3 transition-colors cursor-pointer"
             >
               <div className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400">
                 <ImageIcon className="w-4 h-4" />
               </div>
               <div>
-                <div className="font-semibold text-white">Attach Photo or Notes</div>
-                <div className="text-[11px] text-zinc-400">Upload homework, textbook, or diagram</div>
+                <div className="font-semibold text-white">Attach Photo, Worksheet or Notes</div>
+                <div className="text-[11px] text-zinc-400">Upload handwritten math, textbook, or diagram</div>
               </div>
             </button>
 
@@ -273,28 +349,34 @@ export const PromptInput: React.FC<PromptInputProps> = ({
 
       {/* Attachment Previews */}
       {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2 px-2">
+        <div className="flex flex-wrap gap-2 mb-2 px-2 animate-fadeIn">
           {attachments.map((att, idx) => (
             <div
               key={idx}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-white/20 text-xs text-zinc-200 shadow-md backdrop-blur-md"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900/95 border border-blue-500/40 text-xs text-zinc-100 shadow-lg backdrop-blur-md transition-all hover:border-blue-400"
             >
               {att.type.startsWith('image/') ? (
                 <img
                   src={att.data}
                   alt={att.name}
-                  className="w-6 h-6 object-cover rounded-md"
+                  className="w-7 h-7 object-cover rounded-md border border-white/20 shadow-inner"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <FileText className="w-4 h-4 text-blue-400" />
+                <div className="p-1 rounded bg-blue-500/20 text-blue-400">
+                  <FileText className="w-4 h-4" />
+                </div>
               )}
-              <span className="max-w-[120px] truncate font-medium">{att.name}</span>
+              <div className="flex flex-col">
+                <span className="max-w-[130px] truncate font-semibold text-white">{att.name}</span>
+                {att.size && <span className="text-[10px] text-zinc-400">{formatFileSize(att.size)}</span>}
+              </div>
               <button
                 type="button"
                 id={`btn-remove-attachment-${idx}`}
                 onClick={() => removeAttachment(idx)}
-                className="text-zinc-400 hover:text-white transition-colors"
+                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors ml-1"
+                title="Remove attachment"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -306,7 +388,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
       {/* Main Glass Pill Input matching screenshot design */}
       <div
         id="prompt-input-pill"
-        className="relative flex items-center w-full rounded-full border border-white/30 bg-zinc-950/70 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-300 hover:border-white/40 focus-within:border-white/60 focus-within:shadow-[0_8px_32px_rgba(0,0,0,0.7)] px-2.5 sm:px-4 py-2 sm:py-3 group"
+        className="relative flex items-center w-full rounded-full border border-white/30 bg-zinc-950/70 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-300 hover:border-white/40 focus-within:border-white/60 focus-within:shadow-[0_8px_32px_rgba(0,0,0,0.7)] px-2 sm:px-4 py-2 sm:py-3 group"
       >
         {/* Plus Button */}
         <button
@@ -316,9 +398,20 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           className={`p-1.5 sm:p-2 rounded-full text-zinc-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0 ${
             showToolsMenu ? 'rotate-45 bg-white/15 text-white' : ''
           }`}
-          title="Study tools and attachments"
+          title="Study tools and options"
         >
           <Plus className="w-5 h-5 transition-transform" />
+        </button>
+
+        {/* Quick Direct Attach Image/Photo Button */}
+        <button
+          type="button"
+          id="btn-quick-attach-image"
+          onClick={() => fileInputRef.current?.click()}
+          className="p-1.5 sm:p-2 rounded-full text-zinc-300 hover:text-blue-400 hover:bg-blue-500/10 transition-all cursor-pointer shrink-0"
+          title="Attach photo, worksheet, or document (or paste Ctrl+V)"
+        >
+          <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
         {/* Mode Indicator Badge (Clickable) */}
@@ -340,15 +433,18 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           value={text}
           onChange={handleTextareaChange}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={
-            studyMode === 'socratic'
+            attachments.length > 0
+              ? 'Ask about this image or press Enter to analyze...'
+              : studyMode === 'socratic'
               ? 'Ask for homework guidance (Socratic mode is ON)...'
               : studyMode === 'essay_coach'
               ? 'Paste your essay paragraph, draft, or thesis...'
-              : 'Ask anything'
+              : 'Ask anything or attach a photo / document...'
           }
           rows={1}
-          className="flex-1 bg-transparent text-white placeholder-zinc-400/80 text-sm sm:text-base focus:outline-none resize-none px-2.5 sm:px-4 max-h-32 py-1 leading-normal selection:bg-blue-600 font-sans"
+          className="flex-1 bg-transparent text-white placeholder-zinc-400/80 text-sm sm:text-base focus:outline-none resize-none px-2 sm:px-3 max-h-32 py-1 leading-normal selection:bg-blue-600 font-sans"
         />
 
         {/* Right Actions: Mic + Send */}
@@ -379,7 +475,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                 ? 'bg-white text-zinc-950 hover:bg-zinc-200 shadow-md shadow-white/20 transform active:scale-95'
                 : 'bg-white/10 text-zinc-500 cursor-not-allowed'
             }`}
-            title="Send prompt"
+            title="Send prompt or analyze attachment"
           >
             <ArrowUp className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
           </button>
