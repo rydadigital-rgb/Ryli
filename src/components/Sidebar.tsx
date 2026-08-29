@@ -12,7 +12,10 @@ import {
   FileDown, 
   ShieldCheck, 
   GraduationCap,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  StickyNote as StickyIcon,
+  Gamepad2,
+  WifiOff
 } from 'lucide-react';
 import { ChatSession, Flashcard } from '../types';
 import { SUBJECT_PRESETS } from '../utils/themePresets';
@@ -31,6 +34,10 @@ interface SidebarProps {
   savedFlashcardsCount: number;
   onOpenCalendar?: () => void;
   calendarEventsCount?: number;
+  onOpenStickyNotes?: () => void;
+  stickyNotesCount?: number;
+  onOpenTetris?: () => void;
+  isOnline?: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -47,6 +54,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   savedFlashcardsCount,
   onOpenCalendar,
   calendarEventsCount = 0,
+  onOpenStickyNotes,
+  stickyNotesCount = 0,
+  onOpenTetris,
+  isOnline = true,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -154,6 +165,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
           <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 text-[10px] font-bold">
             {calendarEventsCount}
+          </span>
+        </button>
+      )}
+
+      {/* Quick Sticky Notes shortcut */}
+      {onOpenStickyNotes && (
+        <button
+          id="btn-sidebar-stickies-shortcut"
+          onClick={() => {
+            onOpenStickyNotes();
+            onClose();
+          }}
+          className="mb-2 w-full p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-amber-300 flex items-center justify-between hover:bg-amber-500/15 transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-2">
+            <StickyIcon className="w-4 h-4 text-amber-400" />
+            <span>Study Sticky Notes</span>
+          </span>
+          <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-[10px] font-bold">
+            {stickyNotesCount}
+          </span>
+        </button>
+      )}
+
+      {/* Offline Tetris Arcade shortcut */}
+      {onOpenTetris && (
+        <button
+          id="btn-sidebar-tetris-shortcut"
+          onClick={() => {
+            onOpenTetris();
+            onClose();
+          }}
+          className="mb-2 w-full p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs font-semibold text-blue-300 flex items-center justify-between hover:bg-blue-500/15 transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-2">
+            {isOnline ? <Gamepad2 className="w-4 h-4 text-blue-400" /> : <WifiOff className="w-4 h-4 text-amber-400 animate-pulse" />}
+            <span>{isOnline ? 'Offline Arcade (Tetris)' : 'Play Offline Tetris'}</span>
+          </span>
+          <span className="px-1.5 py-0.5 rounded-md bg-blue-500/20 text-[10px] font-bold">
+            {isOnline ? 'Just Stack' : 'Offline'}
           </span>
         </button>
       )}

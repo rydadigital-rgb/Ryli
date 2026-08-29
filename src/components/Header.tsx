@@ -9,7 +9,9 @@ import {
   Sparkles, 
   Check, 
   ChevronDown,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  StickyNote as StickyIcon,
+  Plus
 } from 'lucide-react';
 import { RyliLogo } from './RyliLogo';
 import { GradeLevel, StudyMode, WallpaperTheme } from '../types';
@@ -23,6 +25,9 @@ interface HeaderProps {
   onOpenThemeModal?: () => void;
   onOpenCalendar?: () => void;
   calendarEventsCount?: number;
+  onAddStickyNote?: () => void;
+  stickyNotesCount?: number;
+  isInChat?: boolean;
   gradeLevel: GradeLevel;
   onChangeGradeLevel: (level: GradeLevel) => void;
   studyMode: StudyMode;
@@ -39,6 +44,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenThemeModal,
   onOpenCalendar,
   calendarEventsCount = 0,
+  onAddStickyNote,
+  stickyNotesCount = 0,
+  isInChat = false,
   gradeLevel,
   onChangeGradeLevel,
   studyMode,
@@ -133,8 +141,27 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right Section: Calendar, Focus timer, theme switcher, school safe guide, new chat */}
+      {/* Right Section: Sticky Note (in chat), Calendar, Focus timer, theme switcher, school safe guide, new chat */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        {/* Sticky Note Add Button - Only visible when inside a chat */}
+        {isInChat && onAddStickyNote && (
+          <button
+            id="btn-header-add-sticky-note"
+            onClick={onAddStickyNote}
+            className="p-1.5 sm:px-3 sm:py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-semibold text-amber-300 flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-sm group animate-fadeIn"
+            title="Add sticky note to jot down study points"
+          >
+            <StickyIcon className="w-4 h-4 text-amber-400 shrink-0 group-hover:rotate-6 transition-transform" />
+            <span className="hidden sm:inline font-medium">Add Note</span>
+            <Plus className="w-3 h-3 text-amber-300/80 -ml-0.5" />
+            {stickyNotesCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-[10px] font-bold text-amber-950 leading-tight">
+                {stickyNotesCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {/* School Calendar Button */}
         {onOpenCalendar && (
           <button

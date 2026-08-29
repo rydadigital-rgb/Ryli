@@ -8,7 +8,9 @@ import {
   WallpaperTheme, 
   QuizQuestion, 
   Flashcard,
-  CalendarEvent
+  CalendarEvent,
+  StickyNoteItem,
+  StickyColor
 } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -20,8 +22,12 @@ import { FlashcardModal } from './components/FlashcardModal';
 import { StudyTipsModal } from './components/StudyTipsModal';
 import { ThemeModal } from './components/ThemeModal';
 import { CalendarModal } from './components/CalendarModal';
+import { StickyNote } from './components/StickyNote';
+import { StickyNotesManagerModal } from './components/StickyNotesManagerModal';
+import { OfflineTetrisModal } from './components/OfflineTetrisModal';
 import { THEME_OPTIONS } from './utils/themePresets';
 import { loadCalendarEventsFromStorage, saveCalendarEventsToStorage, getTodayDateString } from './utils/calendarUtils';
+import { loadStickyNotesFromStorage, saveStickyNotesToStorage } from './utils/stickyNotesUtils';
 
 const STORAGE_KEY = 'ryli_student_sessions_v1';
 const THEME_KEY = 'ryli_theme_preference_v1';
@@ -58,6 +64,19 @@ export default function App() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarFocusDate, setCalendarFocusDate] = useState<string | undefined>(undefined);
 
+  // Sticky Notes State
+  const [stickyNotes, setStickyNotes] = useState<StickyNoteItem[]>(() => {
+    return loadStickyNotesFromStorage();
+  });
+  const [isStickyNotesManagerOpen, setIsStickyNotesManagerOpen] = useState(false);
+  const [stickyTopZIndex, setStickyTopZIndex] = useState(50);
+
+  // Offline & Tetris state
+  const [isOnline, setIsOnline] = useState<boolean>(() => {
+    return typeof navigator !== 'undefined' ? navigator.onLine : true;
+  });
+  const [isTetrisModalOpen, setIsTetrisModalOpen] = useState(false);
+
   // UI state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isFocusTimerOpen, setIsFocusTimerOpen] = useState(false);
@@ -85,6 +104,74 @@ export default function App() {
   useEffect(() => {
     saveCalendarEventsToStorage(calendarEvents);
   }, [calendarEvents]);
+
+  // Persist sticky notes to localStorage
+  useEffect(() => {
+    saveStickyNotesToStorage(stickyNotes);
+  }, [stickyNotes]);
+
+  // Sticky Note handlers
+  const handleAddStickyNote = (color: StickyColor = 'yellow') => {
+    // Offset each newly created note slightly so they don't stack directly on top of each other
+    const noteCount = stickyNotes.length;
+    const baseOffset = (noteCount % 5) * 24;
+    
+    // Spawn near the right-center of screen safely
+    const initialX = Math.max(20, Math.min(window.innerWidth - 300, window.innerWidth - 340 - baseOffset));
+    const initialY = Math.max(80, Math.min(window.innerHeight - 300, 110 + baseOffset));
+
+    const newNote: StickyNoteItem = {
+      id: `sticky-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      content: '',
+      color,
+      x: initialX,
+      y: initialY,
+      width: 260,
+      height: 200,
+      isMinimized: false,
+      isPinned: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    setStickyNotes((prev) => [...prev, newNote]);
+    setStickyTopZIndex((prev) => prev + 1);
+  };
+
+  const handleUpdateStickyNote = (updated: StickyNoteItem) => {
+    setStickyNotes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+  };
+
+  const handleDeleteStickyNote = (id: string) => {
+    setStickyNotes((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const handleClearAllStickyNotes = () => {
+    setStickyNotes([]);
+  };
+
+  const handleBringStickyToFront = (id: string) => {
+    setStickyTopZIndex((prev) => prev + 1);
+  };
+
+  // Listen for online/offline events
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      // Auto open Tetris when internet drops for offline play
+      setIsTetrisModalOpen(true);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Persist theme & grade
   useEffect(() => {
@@ -363,6 +450,20 @@ export default function App() {
       {/* Dark & atmospheric contrast overlay */}
       <div className={`absolute inset-0 z-0 pointer-events-none transition-colors duration-700 ${currentThemeObj.overlayStyle}`} />
 
+      {/* Offline Toast Banner if connection drops */}
+      {!isOnline && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 px-4 py-2 bg-amber-500 text-amber-950 font-bold text-xs rounded-full shadow-2xl flex items-center gap-2 border border-amber-300 animate-bounce">
+          <span>⚠️ You are currently offline.</span>
+          <button
+            id="btn-toast-open-tetris"
+            onClick={() => setIsTetrisModalOpen(true)}
+            className="px-2.5 py-0.5 rounded-full bg-amber-950 text-amber-200 hover:bg-black font-semibold text-[11px] cursor-pointer"
+          >
+            🎮 Play Just Stack
+          </button>
+        </div>
+      )}
+
       {/* Main App Container */}
       <div className="relative z-10 flex flex-col min-h-screen">
         {/* Top Header */}
@@ -374,6 +475,9 @@ export default function App() {
           onOpenThemeModal={() => setIsThemeModalOpen(true)}
           onOpenCalendar={() => setIsCalendarOpen(true)}
           calendarEventsCount={calendarEvents.filter((e) => !e.isCompleted).length}
+          onAddStickyNote={() => handleAddStickyNote('yellow')}
+          stickyNotesCount={stickyNotes.length}
+          isInChat={currentMessages.length > 0 || activeSessionId !== null}
           gradeLevel={gradeLevel}
           onChangeGradeLevel={setGradeLevel}
           studyMode={studyMode}
@@ -401,6 +505,10 @@ export default function App() {
           savedFlashcardsCount={savedDecks.length}
           onOpenCalendar={() => setIsCalendarOpen(true)}
           calendarEventsCount={calendarEvents.filter((e) => !e.isCompleted).length}
+          onOpenStickyNotes={() => setIsStickyNotesManagerOpen(true)}
+          stickyNotesCount={stickyNotes.length}
+          onOpenTetris={() => setIsTetrisModalOpen(true)}
+          isOnline={isOnline}
         />
 
         {/* Main Conversation & Welcome Feed */}
@@ -483,6 +591,41 @@ export default function App() {
         onDeleteEvent={handleDeleteCalendarEvent}
         onToggleComplete={handleToggleCompleteCalendarEvent}
         initialFocusDate={calendarFocusDate}
+      />
+
+      {/* Draggable Sticky Notes overlay */}
+      {stickyNotes.map((note) => (
+        <StickyNote
+          key={note.id}
+          note={note}
+          onUpdate={handleUpdateStickyNote}
+          onDelete={handleDeleteStickyNote}
+          onBringToFront={handleBringStickyToFront}
+          zIndex={stickyTopZIndex}
+        />
+      ))}
+
+      {/* Sticky Notes Collection/Manager Modal */}
+      <StickyNotesManagerModal
+        isOpen={isStickyNotesManagerOpen}
+        onClose={() => setIsStickyNotesManagerOpen(false)}
+        notes={stickyNotes}
+        onAddNote={handleAddStickyNote}
+        onUpdateNote={handleUpdateStickyNote}
+        onDeleteNote={handleDeleteStickyNote}
+        onClearAll={handleClearAllStickyNotes}
+      />
+
+      {/* Minimalist Offline Just Stack (Tetris) Modal */}
+      <OfflineTetrisModal
+        isOpen={isTetrisModalOpen}
+        onClose={() => setIsTetrisModalOpen(false)}
+        isActuallyOffline={!isOnline}
+        onRetryConnection={() => {
+          if (typeof navigator !== 'undefined') {
+            setIsOnline(navigator.onLine);
+          }
+        }}
       />
     </div>
   );
