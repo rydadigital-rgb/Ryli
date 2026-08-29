@@ -1,0 +1,10 @@
+{
+  "name": "Remix Ryli - Copy",
+  "description": "A safe, student-friendly AI assistant that helps learners master subjects and complete assignments through an intuitive chat interface.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
