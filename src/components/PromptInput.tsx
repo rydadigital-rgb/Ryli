@@ -112,11 +112,23 @@ export const PromptInput: React.FC<PromptInputProps> = ({
       reader.onload = (uploadEvent) => {
         const dataUrl = uploadEvent.target?.result as string;
         if (dataUrl) {
+          // Detect accurate MIME type fallback
+          let fileType = file.type;
+          if (!fileType) {
+            const ext = file.name.split('.').pop()?.toLowerCase();
+            if (ext === 'jpg' || ext === 'jpeg') fileType = 'image/jpeg';
+            else if (ext === 'png') fileType = 'image/png';
+            else if (ext === 'webp') fileType = 'image/webp';
+            else if (ext === 'gif') fileType = 'image/gif';
+            else if (ext === 'pdf') fileType = 'application/pdf';
+            else fileType = 'image/jpeg';
+          }
+
           setAttachments((prev) => [
             ...prev,
             {
               name: file.name || 'uploaded_image.png',
-              type: file.type || 'image/jpeg',
+              type: fileType,
               data: dataUrl,
               size: file.size,
             },

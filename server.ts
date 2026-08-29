@@ -281,56 +281,70 @@ At the very end of your response, provide 2 to 3 short, relevant follow-up study
 [/FOLLOWUPS]`;
 };
 
-// Helper to convert any attachment (image, pdf, text file) into Gemini Part
+// Helper to convert any attachment (image, pdf, text file) into standard Gemini inlineData or text part
 function parseAttachmentToPart(att: any) {
   if (!att || !att.data || typeof att.data !== "string") return null;
 
   try {
+    let base64Data = "";
+    let mimeType = (att.type || "image/jpeg").toLowerCase().trim();
+
     if (att.data.startsWith("data:")) {
       const commaIndex = att.data.indexOf(",");
       if (commaIndex === -1) return null;
 
       const header = att.data.substring(0, commaIndex);
-      // Clean base64 string by removing all whitespace/newlines
-      const base64Data = att.data.substring(commaIndex + 1).replace(/\s+/g, "");
-      if (!base64Data) return null;
+      base64Data = att.data.substring(commaIndex + 1).replace(/[\r\n\s]/g, "");
 
-      const mimeMatch = header.match(/data:([^;,]+)/);
-      let mimeType = mimeMatch ? mimeMatch[1].toLowerCase().trim() : (att.type || "image/jpeg").toLowerCase().trim();
+      const mimeMatch = header.match(/data:([^;,]+)/i);
+      if (mimeMatch && mimeMatch[1]) {
+        mimeType = mimeMatch[1].toLowerCase().trim();
+      }
+    } else {
+      // Direct base64 string
+      base64Data = att.data.replace(/[\r\n\s]/g, "");
+    }
 
-      // Normalize image MIME types
-      if (mimeType === "image/jpg") mimeType = "image/jpeg";
+    if (!base64Data) return null;
 
-      if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
+    // Normalize common image mime abbreviations
+    if (mimeType === "image/jpg" || mimeType === "jpg") mimeType = "image/jpeg";
+    if (mimeType === "image/pjpeg") mimeType = "image/jpeg";
+    if (mimeType === "png") mimeType = "image/png";
+    if (mimeType === "webp") mimeType = "image/webp";
+    if (mimeType === "gif") mimeType = "image/gif";
+    if (mimeType === "pdf") mimeType = "application/pdf";
+    if (mimeType === "txt") mimeType = "text/plain";
+
+    if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
+      return {
+        inlineData: {
+          mimeType,
+          data: base64Data,
+        },
+      };
+    } else if (mimeType.startsWith("text/") || mimeType.includes("json") || mimeType.includes("markdown")) {
+      try {
+        const decodedText = Buffer.from(base64Data, "base64").toString("utf-8");
         return {
-          inlineData: {
-            mimeType,
-            data: base64Data,
-          },
+          text: `[Attached File: ${att.name || "student_document.txt"}]\n${decodedText}\n[End of File]`,
         };
-      } else if (mimeType.startsWith("text/") || mimeType.includes("json") || mimeType.includes("markdown")) {
-        try {
-          const decodedText = Buffer.from(base64Data, "base64").toString("utf-8");
-          return {
-            text: `[Attached File: ${att.name || "student_notes.txt"}]\n${decodedText}\n[End of File]`,
-          };
-        } catch {
-          return {
-            inlineData: {
-              mimeType: "text/plain",
-              data: base64Data,
-            },
-          };
-        }
-      } else {
-        // Default to image/jpeg or inline data fallback
+      } catch {
         return {
           inlineData: {
-            mimeType: mimeType || "image/jpeg",
+            mimeType: "text/plain",
             data: base64Data,
           },
         };
       }
+    } else {
+      // Default to image/jpeg inline data fallback
+      return {
+        inlineData: {
+          mimeType: mimeType || "image/jpeg",
+          data: base64Data,
+        },
+      };
     }
   } catch (err) {
     console.error("Error parsing attachment to part:", err);
