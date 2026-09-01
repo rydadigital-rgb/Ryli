@@ -126,29 +126,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       </div>
 
-      {/* Quick Subject Launchers */}
-      <div className="mb-3">
-        <div className="px-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center justify-between">
-          <span>Quick Subjects</span>
-        </div>
-        <div className="grid grid-cols-2 gap-1">
-          {SUBJECT_PRESETS.slice(0, 4).map((sub) => (
-            <button
-              key={sub.id}
-              id={`btn-quick-sub-${sub.id}`}
-              onClick={() => {
-                onQuickSubjectPrompt(sub.prompt);
-                onClose();
-              }}
-              className="px-2.5 py-1.5 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-left text-xs text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5 truncate cursor-pointer border border-white/5"
-            >
-              <span>{sub.icon}</span>
-              <span className="truncate">{sub.name.split(' ')[0]}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Quick Calendar & Schedule shortcut */}
       {onOpenCalendar && (
         <button
