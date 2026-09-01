@@ -246,14 +246,12 @@ Target Audience & Tone:
 - When explaining complex scientific or mathematical concepts, include relatable real-world examples.
 
 MULTIMODAL & STUDENT ATTACHMENT INSTRUCTIONS:
-- Students upload diverse photos, including:
-  1. Real-world objects, animals (e.g. dog breeds like Samoyed, Golden Retriever), plants, nature, science experiments, historical artifacts, and everyday photos.
-  2. Textbook pages, handwritten math solutions on paper, homework worksheets, science diagrams, charts, essay drafts, or PDF documents.
+- Students frequently upload photos of textbook pages, handwritten math solutions on paper, homework worksheets, science diagrams, charts, essay drafts, or PDF documents.
 - When an image or document is attached:
-  1. FIRST, carefully look at the entire image and identify what is shown (e.g., "In this image, I see a fluffy white dog which is a **Samoyed** breed..." or "Looking at your worksheet problem...").
-  2. If it is an animal, plant, object, or landmark: identify the species/breed/name, explain its characteristics, biological/scientific context, origin, and fun educational facts.
-  3. If it contains math problems, formulas, diagrams, or questions: transcribe and solve them with clear, step-by-step educational explanations appropriate for their grade level.
-  4. NEVER say that an image or message didn't come through if an image attachment is present in the prompt. Always inspect and explain the visual contents thoroughly.
+  1. Carefully inspect and transcribe the problem statement, math formulas, equations, or questions shown in the image.
+  2. Explicitly acknowledge what you see in the student's image (e.g., "Looking at your worksheet / equation on the page...").
+  3. Provide complete, accurate, step-by-step guidance, formulas, explanations, or solutions appropriate for their grade level.
+  4. If the image is slightly blurry or has multiple problems, identify the problems clearly (e.g. Problem #1, Problem #2) and provide structured answers.
 
 CALENDAR & SCHEDULE DETECTION:
 If the user asks to schedule, remind, save a date, log a task, deadline, homework, exam, quiz, study session, or school event (e.g. "Save a date for my science project on next Monday", "Remind me to study physics on Friday at 4pm", "Schedule math exam on Sept 15 at 9am", "Add school sports fest on Oct 12-14"):
@@ -283,70 +281,56 @@ At the very end of your response, provide 2 to 3 short, relevant follow-up study
 [/FOLLOWUPS]`;
 };
 
-// Helper to convert any attachment (image, pdf, text file) into standard Gemini inlineData or text part
+// Helper to convert any attachment (image, pdf, text file) into Gemini Part
 function parseAttachmentToPart(att: any) {
   if (!att || !att.data || typeof att.data !== "string") return null;
 
   try {
-    let base64Data = "";
-    let mimeType = (att.type || "image/jpeg").toLowerCase().trim();
-
     if (att.data.startsWith("data:")) {
       const commaIndex = att.data.indexOf(",");
       if (commaIndex === -1) return null;
 
       const header = att.data.substring(0, commaIndex);
-      base64Data = att.data.substring(commaIndex + 1).replace(/[\r\n\s]/g, "");
+      // Clean base64 string by removing all whitespace/newlines
+      const base64Data = att.data.substring(commaIndex + 1).replace(/\s+/g, "");
+      if (!base64Data) return null;
 
-      const mimeMatch = header.match(/data:([^;,]+)/i);
-      if (mimeMatch && mimeMatch[1]) {
-        mimeType = mimeMatch[1].toLowerCase().trim();
-      }
-    } else {
-      // Direct base64 string
-      base64Data = att.data.replace(/[\r\n\s]/g, "");
-    }
+      const mimeMatch = header.match(/data:([^;,]+)/);
+      let mimeType = mimeMatch ? mimeMatch[1].toLowerCase().trim() : (att.type || "image/jpeg").toLowerCase().trim();
 
-    if (!base64Data) return null;
+      // Normalize image MIME types
+      if (mimeType === "image/jpg") mimeType = "image/jpeg";
 
-    // Normalize common image mime abbreviations
-    if (mimeType === "image/jpg" || mimeType === "jpg") mimeType = "image/jpeg";
-    if (mimeType === "image/pjpeg") mimeType = "image/jpeg";
-    if (mimeType === "png") mimeType = "image/png";
-    if (mimeType === "webp") mimeType = "image/webp";
-    if (mimeType === "gif") mimeType = "image/gif";
-    if (mimeType === "pdf") mimeType = "application/pdf";
-    if (mimeType === "txt") mimeType = "text/plain";
-
-    if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
-      return {
-        inlineData: {
-          mimeType,
-          data: base64Data,
-        },
-      };
-    } else if (mimeType.startsWith("text/") || mimeType.includes("json") || mimeType.includes("markdown")) {
-      try {
-        const decodedText = Buffer.from(base64Data, "base64").toString("utf-8");
-        return {
-          text: `[Attached File: ${att.name || "student_document.txt"}]\n${decodedText}\n[End of File]`,
-        };
-      } catch {
+      if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
         return {
           inlineData: {
-            mimeType: "text/plain",
+            mimeType,
+            data: base64Data,
+          },
+        };
+      } else if (mimeType.startsWith("text/") || mimeType.includes("json") || mimeType.includes("markdown")) {
+        try {
+          const decodedText = Buffer.from(base64Data, "base64").toString("utf-8");
+          return {
+            text: `[Attached File: ${att.name || "student_notes.txt"}]\n${decodedText}\n[End of File]`,
+          };
+        } catch {
+          return {
+            inlineData: {
+              mimeType: "text/plain",
+              data: base64Data,
+            },
+          };
+        }
+      } else {
+        // Default to image/jpeg or inline data fallback
+        return {
+          inlineData: {
+            mimeType: mimeType || "image/jpeg",
             data: base64Data,
           },
         };
       }
-    } else {
-      // Default to image/jpeg inline data fallback
-      return {
-        inlineData: {
-          mimeType: mimeType || "image/jpeg",
-          data: base64Data,
-        },
-      };
     }
   } catch (err) {
     console.error("Error parsing attachment to part:", err);
@@ -406,9 +390,9 @@ app.post("/api/chat", async (req, res) => {
       if (textContent) {
         parts.push({ text: textContent });
       } else if (hasAttachment && msg.role === "user") {
-        // If the student uploaded an image/file without typing any text, instruct Gemini to identify and explain what is in the picture
+        // If the student uploaded an image/file without typing any text, give Gemini a clear prompt to inspect & solve it
         parts.push({
-          text: "Carefully analyze and identify everything in this attached image or document. If it is an animal, dog breed, plant, object, diagram, or scene, clearly state what it is, describe its key characteristics, classification, origin, and interesting educational facts. If it contains homework, equations, or questions, solve and explain them step-by-step.",
+          text: "Please carefully analyze the attached student image/file. Transcribe and identify the homework questions, math problems, equations, diagrams, or notes shown, and provide clear, step-by-step educational explanations and answers.",
         });
       }
 

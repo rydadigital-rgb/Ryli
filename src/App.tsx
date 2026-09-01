@@ -22,8 +22,7 @@ import { FlashcardModal } from './components/FlashcardModal';
 import { StudyTipsModal } from './components/StudyTipsModal';
 import { ThemeModal } from './components/ThemeModal';
 import { CalendarModal } from './components/CalendarModal';
-import { StickyNote } from './components/StickyNote';
-import { StickyNotesManagerModal } from './components/StickyNotesManagerModal';
+import { DesktopNotepad } from './components/DesktopNotepad';
 import { OfflineTetrisModal } from './components/OfflineTetrisModal';
 import { THEME_OPTIONS } from './utils/themePresets';
 import { loadCalendarEventsFromStorage, saveCalendarEventsToStorage, getTodayDateString } from './utils/calendarUtils';
@@ -64,12 +63,49 @@ export default function App() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [calendarFocusDate, setCalendarFocusDate] = useState<string | undefined>(undefined);
 
-  // Sticky Notes State
+  // Desktop Notepad State
+  const [isNotepadOpen, setIsNotepadOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ryli_notepad_open_v1');
+      if (saved !== null) return JSON.parse(saved);
+      return typeof window !== 'undefined' ? window.innerWidth >= 768 : true;
+    } catch {
+      return true;
+    }
+  });
   const [stickyNotes, setStickyNotes] = useState<StickyNoteItem[]>(() => {
     return loadStickyNotesFromStorage();
   });
-  const [isStickyNotesManagerOpen, setIsStickyNotesManagerOpen] = useState(false);
-  const [stickyTopZIndex, setStickyTopZIndex] = useState(50);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(() => {
+    const initialNotes = loadStickyNotesFromStorage();
+    return initialNotes.length > 0 ? initialNotes[0].id : null;
+  });
+  const [notepadWidth, setNotepadWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('ryli_notepad_width_v1');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return 440;
+  });
+
+  // Persist notepad open preference & width
+  useEffect(() => {
+    try {
+      localStorage.setItem('ryli_notepad_open_v1', JSON.stringify(isNotepadOpen));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [isNotepadOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ryli_notepad_width_v1', JSON.stringify(notepadWidth));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [notepadWidth]);
 
   // Offline & Tetris state
   const [isOnline, setIsOnline] = useState<boolean>(() => {
@@ -110,32 +146,26 @@ export default function App() {
     saveStickyNotesToStorage(stickyNotes);
   }, [stickyNotes]);
 
-  // Sticky Note handlers
-  const handleAddStickyNote = (color: StickyColor = 'yellow') => {
-    // Offset each newly created note slightly so they don't stack directly on top of each other
-    const noteCount = stickyNotes.length;
-    const baseOffset = (noteCount % 5) * 24;
-    
-    // Spawn near the right-center of screen safely
-    const initialX = Math.max(20, Math.min(window.innerWidth - 300, window.innerWidth - 340 - baseOffset));
-    const initialY = Math.max(80, Math.min(window.innerHeight - 300, 110 + baseOffset));
-
+  // Desktop Notepad handlers
+  const handleAddStickyNote = (
+    color: StickyColor = 'yellow',
+    initialContent: string = '',
+    initialTitle?: string
+  ): string => {
+    const newId = `note-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const newNote: StickyNoteItem = {
-      id: `sticky-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      content: '',
+      id: newId,
+      title: initialTitle || `Note ${stickyNotes.length + 1}`,
+      content: initialContent,
       color,
-      x: initialX,
-      y: initialY,
-      width: 260,
-      height: 200,
-      isMinimized: false,
-      isPinned: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
-    setStickyNotes((prev) => [...prev, newNote]);
-    setStickyTopZIndex((prev) => prev + 1);
+    setStickyNotes((prev) => [newNote, ...prev]);
+    setActiveNoteId(newId);
+    setIsNotepadOpen(true);
+    return newId;
   };
 
   const handleUpdateStickyNote = (updated: StickyNoteItem) => {
@@ -143,15 +173,46 @@ export default function App() {
   };
 
   const handleDeleteStickyNote = (id: string) => {
-    setStickyNotes((prev) => prev.filter((n) => n.id !== id));
+    setStickyNotes((prev) => {
+      const filtered = prev.filter((n) => n.id !== id);
+      if (activeNoteId === id && filtered.length > 0) {
+        setActiveNoteId(filtered[0].id);
+      }
+      return filtered;
+    });
   };
 
   const handleClearAllStickyNotes = () => {
     setStickyNotes([]);
+    setActiveNoteId(null);
   };
 
-  const handleBringStickyToFront = (id: string) => {
-    setStickyTopZIndex((prev) => prev + 1);
+  const handleAppendToActiveNote = (text: string) => {
+    if (!text) return;
+    setIsNotepadOpen(true);
+    setStickyNotes((prev) => {
+      if (prev.length === 0) {
+        const newNote: StickyNoteItem = {
+          id: `note-${Date.now()}`,
+          title: 'Study Takeaways',
+          content: text,
+          color: 'yellow',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        setActiveNoteId(newNote.id);
+        return [newNote];
+      }
+
+      const target = prev.find((n) => n.id === activeNoteId) || prev[0];
+      const updated = {
+        ...target,
+        content: target.content ? `${target.content}\n\n---\n${text}` : text,
+        updatedAt: Date.now(),
+      };
+      setActiveNoteId(updated.id);
+      return prev.map((n) => (n.id === updated.id ? updated : n));
+    });
   };
 
   // Listen for online/offline events
@@ -274,23 +335,16 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // Build lightweight conversation history for Vercel transmission
-      // Only the active/latest message carries the base64 image data to stay strictly within Vercel's 4.5MB limit
-      const payloadMessages = updatedMessages.map((m, idx) => {
-        const isLatest = idx === updatedMessages.length - 1;
-        return {
-          role: m.role,
-          content: m.content,
-          attachments: isLatest ? m.attachments : (m.attachments ? m.attachments.map(a => ({ name: a.name, type: a.type, size: a.size, data: '' })) : undefined),
-        };
-      });
-
       // Make real call to server endpoint
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: payloadMessages,
+          messages: updatedMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+            attachments: m.attachments,
+          })),
           gradeLevel,
           studyMode,
           attachments,
@@ -472,83 +526,106 @@ export default function App() {
         </div>
       )}
 
-      {/* Main App Container */}
-      <div className="relative z-10 flex flex-col min-h-screen">
-        {/* Top Header */}
-        <Header
-          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          onNewChat={handleNewSession}
-          onOpenFocusTimer={() => setIsFocusTimerOpen(true)}
-          onOpenTipsModal={() => setIsTipsModalOpen(true)}
-          onOpenThemeModal={() => setIsThemeModalOpen(true)}
-          onOpenCalendar={() => setIsCalendarOpen(true)}
-          calendarEventsCount={calendarEvents.filter((e) => !e.isCompleted).length}
-          onAddStickyNote={() => handleAddStickyNote('yellow')}
-          stickyNotesCount={stickyNotes.length}
-          isInChat={currentMessages.length > 0 || activeSessionId !== null}
-          gradeLevel={gradeLevel}
-          onChangeGradeLevel={setGradeLevel}
-          studyMode={studyMode}
-          onChangeStudyMode={setStudyMode}
-          currentTheme={currentTheme}
-          onChangeTheme={setCurrentTheme}
-        />
-
-        {/* Sidebar History Drawer */}
-        <Sidebar
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onSelectSession={handleSelectSession}
-          onNewSession={handleNewSession}
-          onDeleteSession={handleDeleteSession}
-          onTogglePinSession={handleTogglePinSession}
-          onQuickSubjectPrompt={(prompt) => handleSendMessage(prompt, [])}
-          onOpenFlashcardLibrary={() => {
-            if (savedDecks.length > 0) {
-              setActiveFlashcards(savedDecks[0]);
-            }
-          }}
-          savedFlashcardsCount={savedDecks.length}
-          onOpenCalendar={() => setIsCalendarOpen(true)}
-          calendarEventsCount={calendarEvents.filter((e) => !e.isCompleted).length}
-          onOpenStickyNotes={() => setIsStickyNotesManagerOpen(true)}
-          stickyNotesCount={stickyNotes.length}
-          onOpenTetris={() => setIsTetrisModalOpen(true)}
-          isOnline={isOnline}
-        />
-
-        {/* Main Conversation & Welcome Feed */}
-        <main className="flex-1 flex flex-col overflow-y-auto w-full">
-          <ChatView
-            messages={currentMessages}
-            isLoading={isLoading}
-            onSelectPrompt={(prompt) => handleSendMessage(prompt, [])}
-            onGenerateQuizFromTopic={handleGenerateQuiz}
-            onGenerateFlashcardsFromTopic={handleGenerateFlashcards}
-            onOpenQuizModal={(quiz) => setActiveQuiz(quiz)}
-            onOpenFlashcardsModal={(deck) => setActiveFlashcards(deck)}
-            onOpenCalendarModal={handleOpenCalendarWithFocus}
-            onToggleCompleteCalendarEvent={handleToggleCompleteCalendarEvent}
-            studyMode={studyMode}
-            gradeLevel={gradeLevel}
+      {/* Main Desktop Layout Container */}
+      <div className="relative z-10 flex flex-col md:flex-row min-h-screen w-full">
+        {/* Left Desktop Notepad Pane / Mobile Dedicated Full-Screen Overlay View */}
+        {isNotepadOpen && (
+          <DesktopNotepad
+            isOpen={isNotepadOpen}
+            onClose={() => setIsNotepadOpen(false)}
+            notes={stickyNotes}
+            activeNoteId={activeNoteId}
+            onSelectNote={setActiveNoteId}
+            onAddNote={handleAddStickyNote}
+            onUpdateNote={handleUpdateStickyNote}
+            onDeleteNote={handleDeleteStickyNote}
+            onClearAllNotes={handleClearAllStickyNotes}
+            onAppendToActiveNote={handleAppendToActiveNote}
+            width={notepadWidth}
+            onWidthChange={setNotepadWidth}
           />
-        </main>
+        )}
 
-        {/* Bottom Input Area matching screenshot design */}
-        <footer className="w-full pb-3 sm:pb-6 pt-1 sm:pt-2 shrink-0">
-          <PromptInput
-            onSend={handleSendMessage}
-            isLoading={isLoading}
-            studyMode={studyMode}
-            onSelectStudyMode={setStudyMode}
+        {/* Right Main Application Area (Header + Chat + Input) - Hidden on mobile if notepad is open to keep views strictly separated */}
+        <div className={`flex-1 flex flex-col min-w-0 min-h-screen relative ${isNotepadOpen ? 'hidden md:flex' : 'flex'}`}>
+          {/* Top Header */}
+          <Header
+            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            onNewChat={handleNewSession}
+            onOpenFocusTimer={() => setIsFocusTimerOpen(true)}
+            onOpenTipsModal={() => setIsTipsModalOpen(true)}
+            onOpenThemeModal={() => setIsThemeModalOpen(true)}
+            onOpenCalendar={() => setIsCalendarOpen(true)}
+            calendarEventsCount={calendarEvents.filter((e) => !e.isCompleted).length}
+            isNotepadOpen={isNotepadOpen}
+            onToggleNotepad={() => setIsNotepadOpen(!isNotepadOpen)}
+            notesCount={stickyNotes.length}
+            isInChat={currentMessages.length > 0 || activeSessionId !== null}
             gradeLevel={gradeLevel}
+            onChangeGradeLevel={setGradeLevel}
+            studyMode={studyMode}
+            onChangeStudyMode={setStudyMode}
+            currentTheme={currentTheme}
+            onChangeTheme={setCurrentTheme}
           />
-          <div className="text-center mt-1.5 sm:mt-2 text-[10px] sm:text-[11px] text-zinc-400/80 tracking-wide px-2">
-            RYLI by Ryda AI • Safe & educational AI assistant for schools
-          </div>
-        </footer>
+
+          {/* Sidebar History Drawer */}
+          <Sidebar
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            onDeleteSession={handleDeleteSession}
+            onTogglePinSession={handleTogglePinSession}
+            onQuickSubjectPrompt={(prompt) => handleSendMessage(prompt, [])}
+            onOpenFlashcardLibrary={() => {
+              if (savedDecks.length > 0) {
+                setActiveFlashcards(savedDecks[0]);
+              }
+            }}
+            savedFlashcardsCount={savedDecks.length}
+            onOpenCalendar={() => setIsCalendarOpen(true)}
+            calendarEventsCount={calendarEvents.filter((e) => !e.isCompleted).length}
+            onOpenStickyNotes={() => setIsNotepadOpen(true)}
+            stickyNotesCount={stickyNotes.length}
+            onOpenTetris={() => setIsTetrisModalOpen(true)}
+            isOnline={isOnline}
+          />
+
+          {/* Main Conversation & Welcome Feed */}
+          <main className="flex-1 flex flex-col overflow-y-auto w-full">
+            <ChatView
+              messages={currentMessages}
+              isLoading={isLoading}
+              onSelectPrompt={(prompt) => handleSendMessage(prompt, [])}
+              onGenerateQuizFromTopic={handleGenerateQuiz}
+              onGenerateFlashcardsFromTopic={handleGenerateFlashcards}
+              onOpenQuizModal={(quiz) => setActiveQuiz(quiz)}
+              onOpenFlashcardsModal={(deck) => setActiveFlashcards(deck)}
+              onOpenCalendarModal={handleOpenCalendarWithFocus}
+              onToggleCompleteCalendarEvent={handleToggleCompleteCalendarEvent}
+              onSaveToNotepad={handleAppendToActiveNote}
+              studyMode={studyMode}
+              gradeLevel={gradeLevel}
+            />
+          </main>
+
+          {/* Bottom Input Area matching screenshot design */}
+          <footer className="w-full pb-3 sm:pb-6 pt-1 sm:pt-2 shrink-0">
+            <PromptInput
+              onSend={handleSendMessage}
+              isLoading={isLoading}
+              studyMode={studyMode}
+              onSelectStudyMode={setStudyMode}
+              gradeLevel={gradeLevel}
+            />
+            <div className="text-center mt-1.5 sm:mt-2 text-[10px] sm:text-[11px] text-zinc-400/80 tracking-wide px-2">
+              RYLI by Ryda AI • Safe & educational AI assistant for schools
+            </div>
+          </footer>
+        </div>
       </div>
 
       {/* Modals & Tools */}
@@ -599,29 +676,6 @@ export default function App() {
         onDeleteEvent={handleDeleteCalendarEvent}
         onToggleComplete={handleToggleCompleteCalendarEvent}
         initialFocusDate={calendarFocusDate}
-      />
-
-      {/* Draggable Sticky Notes overlay */}
-      {stickyNotes.map((note) => (
-        <StickyNote
-          key={note.id}
-          note={note}
-          onUpdate={handleUpdateStickyNote}
-          onDelete={handleDeleteStickyNote}
-          onBringToFront={handleBringStickyToFront}
-          zIndex={stickyTopZIndex}
-        />
-      ))}
-
-      {/* Sticky Notes Collection/Manager Modal */}
-      <StickyNotesManagerModal
-        isOpen={isStickyNotesManagerOpen}
-        onClose={() => setIsStickyNotesManagerOpen(false)}
-        notes={stickyNotes}
-        onAddNote={handleAddStickyNote}
-        onUpdateNote={handleUpdateStickyNote}
-        onDeleteNote={handleDeleteStickyNote}
-        onClearAll={handleClearAllStickyNotes}
       />
 
       {/* Minimalist Offline Just Stack (Tetris) Modal */}

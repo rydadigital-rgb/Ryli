@@ -13,13 +13,9 @@ import {
   BookOpen, 
   CheckSquare, 
   Layers,
-  UploadCloud,
-  CheckCircle2,
-  Loader2,
-  Zap
+  UploadCloud
 } from 'lucide-react';
 import { Attachment, StudyMode, GradeLevel } from '../types';
-import { processAnyImageFile, formatBytes } from '../utils/imageOptimizer';
 
 interface PromptInputProps {
   onSend: (text: string, attachments: Attachment[]) => void;
@@ -43,8 +39,6 @@ export const PromptInput: React.FC<PromptInputProps> = ({
   const [isListening, setIsListening] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [optimizingStatus, setOptimizingStatus] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
@@ -112,35 +106,25 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     }
   };
 
-  const processFiles = async (files: FileList | File[]) => {
-    const fileArray = Array.from(files);
-    if (fileArray.length === 0) return;
-
-    setIsOptimizing(true);
-    try {
-      for (const file of fileArray) {
-        setOptimizingStatus(`Detecting & optimizing ${file.name} (${formatBytes(file.size)})...`);
-        const result = await processAnyImageFile(file);
-        
-        setAttachments((prev) => [
-          ...prev,
-          {
-            name: result.name,
-            type: result.mimeType,
-            data: result.dataUrl,
-            size: result.optimizedSize,
-            originalSize: result.originalSize,
-            dimensions: result.width > 0 ? { width: result.width, height: result.height } : undefined,
-            isOptimized: result.isOptimized,
-          },
-        ]);
-      }
-    } catch (err) {
-      console.error('Error processing image files:', err);
-    } finally {
-      setIsOptimizing(false);
-      setOptimizingStatus('');
-    }
+  const processFiles = (files: FileList | File[]) => {
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const dataUrl = uploadEvent.target?.result as string;
+        if (dataUrl) {
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name || 'uploaded_image.png',
+              type: file.type || 'image/jpeg',
+              data: dataUrl,
+              size: file.size,
+            },
+          ]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -363,64 +347,35 @@ export const PromptInput: React.FC<PromptInputProps> = ({
         </div>
       )}
 
-      {/* Image Optimization Progress Banner for High-Res/Large Images */}
-      {isOptimizing && (
-        <div className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded-xl bg-blue-950/80 border border-blue-400/40 text-xs text-blue-200 shadow-lg backdrop-blur-md animate-fadeIn">
-          <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
-          <span className="font-medium truncate">{optimizingStatus || 'Detecting & optimizing image for Vercel transmission...'}</span>
-          <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 shrink-0 font-semibold">
-            Vercel Guard Active
-          </span>
-        </div>
-      )}
-
-      {/* Attachment Previews with Detected File Size and Optimization Badges */}
+      {/* Attachment Previews */}
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2 px-2 animate-fadeIn">
           {attachments.map((att, idx) => (
             <div
               key={idx}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-zinc-900/95 border border-blue-500/40 text-xs text-zinc-100 shadow-lg backdrop-blur-md transition-all hover:border-blue-400"
-              title={att.dimensions ? `Detected resolution: ${att.dimensions.width}×${att.dimensions.height}px | Safe for Vercel AI Vision` : `File: ${att.name}`}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900/95 border border-blue-500/40 text-xs text-zinc-100 shadow-lg backdrop-blur-md transition-all hover:border-blue-400"
             >
               {att.type.startsWith('image/') ? (
                 <img
                   src={att.data}
                   alt={att.name}
-                  className="w-8 h-8 object-cover rounded-md border border-white/20 shadow-inner shrink-0"
+                  className="w-7 h-7 object-cover rounded-md border border-white/20 shadow-inner"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="p-1.5 rounded-md bg-blue-500/20 text-blue-400 shrink-0">
+                <div className="p-1 rounded bg-blue-500/20 text-blue-400">
                   <FileText className="w-4 h-4" />
                 </div>
               )}
-              <div className="flex flex-col min-w-0">
-                <span className="max-w-[140px] truncate font-semibold text-white">{att.name}</span>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {att.originalSize && att.size && att.originalSize > att.size ? (
-                    <div className="flex items-center gap-1 text-[10px]">
-                      <span className="text-zinc-400 line-through">{formatBytes(att.originalSize)}</span>
-                      <span className="text-emerald-400 font-bold">→ {formatBytes(att.size)}</span>
-                      <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-semibold flex items-center gap-0.5">
-                        <Zap className="w-2.5 h-2.5" /> Vercel Ready
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-[10px] text-zinc-400">{formatBytes(att.size || att.originalSize || 0)}</span>
-                  )}
-                  {att.dimensions && (
-                    <span className="text-[9px] text-zinc-400/80 font-mono">
-                      {att.dimensions.width}×{att.dimensions.height}
-                    </span>
-                  )}
-                </div>
+              <div className="flex flex-col">
+                <span className="max-w-[130px] truncate font-semibold text-white">{att.name}</span>
+                {att.size && <span className="text-[10px] text-zinc-400">{formatFileSize(att.size)}</span>}
               </div>
               <button
                 type="button"
                 id={`btn-remove-attachment-${idx}`}
                 onClick={() => removeAttachment(idx)}
-                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors ml-1 cursor-pointer shrink-0"
+                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors ml-1"
                 title="Remove attachment"
               >
                 <X className="w-3.5 h-3.5" />

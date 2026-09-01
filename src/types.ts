@@ -2,12 +2,13 @@ export type StickyColor = 'yellow' | 'green' | 'pink' | 'blue' | 'purple' | 'amb
 
 export interface StickyNoteItem {
   id: string;
+  title?: string;
   content: string;
   color: StickyColor;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
   isMinimized?: boolean;
   isPinned?: boolean;
   createdAt: number;
@@ -57,10 +58,7 @@ export interface Attachment {
   name: string;
   type: string;
   data: string; // base64 data url or text
-  size?: number; // optimized size
-  originalSize?: number; // raw original file size
-  dimensions?: { width: number; height: number };
-  isOptimized?: boolean;
+  size?: number;
 }
 
 export interface QuizQuestion {

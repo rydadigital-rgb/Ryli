@@ -59,18 +59,67 @@ export const STICKY_COLORS: { id: StickyColor; name: string; bg: string; border:
   },
 ];
 
+const DEFAULT_STARTER_NOTES: StickyNoteItem[] = [
+  {
+    id: 'note-starter-links',
+    title: 'Research Links & Accounts',
+    content: `Gdrive
+Google Drive: Sign-in
+
+Ryda Main Website
+https://rydadigital.com
+
+Ryda Testing Website
+https://sites.leadconnectorhq.com/preview/5TgHqk7btYxUixGZ8Rui
+
+Ryda Canva Portfolio
+https://canva.link/2gc2xsxd1jmipg2
+
+Ryda Pitch Deck
+https://canva.link/1iu5ycamctc0eom
+
+Instagram
+https://www.instagram.com/rydadigital?igsh=b3d0amtqbHZjZzQ5&utm_source=qr
+
+Ad ideas
+https://hookest.com/?utm_source=ig&utm_medium=social&utm_content=link_in_bio
+
+Pitch decks
+https://slidebean.com/pitch-deck-examples`,
+    color: 'yellow',
+    createdAt: Date.now() - 3600000,
+    updatedAt: Date.now() - 1800000,
+  },
+  {
+    id: 'note-study-reminders',
+    title: 'Key Study Formulas & Pointers',
+    content: `## 3. Key Concepts to Remember
+
+• **Theosis & Synergy**: Active cooperation between human will and divine grace in Eastern theology.
+• **Primary Sources**: Check Dante's Divine Comedy, Dostoevsky's Brother Karamazov.
+• **Exam Schedule**: Review Chapter 4 & 5 before Friday.
+
+- [ ] Complete practice quiz on Theosis
+- [ ] Review AP Literature flashcards
+- [ ] Summarize main takeaways`,
+    color: 'amber',
+    createdAt: Date.now() - 7200000,
+    updatedAt: Date.now() - 3600000,
+  },
+];
+
 export function loadStickyNotesFromStorage(): StickyNoteItem[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) return DEFAULT_STARTER_NOTES;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
+    if (Array.isArray(parsed) && parsed.length > 0) {
       return parsed;
     }
-    return [];
+    return DEFAULT_STARTER_NOTES;
   } catch (e) {
     console.error('Failed to load sticky notes from storage', e);
-    return [];
+    return DEFAULT_STARTER_NOTES;
   }
 }
 

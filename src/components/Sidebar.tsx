@@ -169,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       )}
 
-      {/* Quick Sticky Notes shortcut */}
+      {/* Quick Notepad shortcut */}
       {onOpenStickyNotes && (
         <button
           id="btn-sidebar-stickies-shortcut"
@@ -181,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <span className="flex items-center gap-2">
             <StickyIcon className="w-4 h-4 text-amber-400" />
-            <span>Study Sticky Notes</span>
+            <span>Study Notepad (Left Workspace)</span>
           </span>
           <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-[10px] font-bold">
             {stickyNotesCount}

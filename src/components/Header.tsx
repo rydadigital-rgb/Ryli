@@ -25,6 +25,9 @@ interface HeaderProps {
   onOpenThemeModal?: () => void;
   onOpenCalendar?: () => void;
   calendarEventsCount?: number;
+  isNotepadOpen?: boolean;
+  onToggleNotepad?: () => void;
+  notesCount?: number;
   onAddStickyNote?: () => void;
   stickyNotesCount?: number;
   isInChat?: boolean;
@@ -44,6 +47,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenThemeModal,
   onOpenCalendar,
   calendarEventsCount = 0,
+  isNotepadOpen = false,
+  onToggleNotepad,
+  notesCount = 0,
   onAddStickyNote,
   stickyNotesCount = 0,
   isInChat = false,
@@ -141,22 +147,27 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right Section: Sticky Note (in chat), Calendar, Focus timer, theme switcher, school safe guide, new chat */}
+      {/* Right Section: Notepad toggle, Calendar, Focus timer, theme switcher, school safe guide, new chat */}
       <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-        {/* Sticky Note Add Button - Only visible when inside a chat */}
-        {isInChat && onAddStickyNote && (
+        {/* Desktop Notepad Toggle Button */}
+        {onToggleNotepad && (
           <button
-            id="btn-header-add-sticky-note"
-            onClick={onAddStickyNote}
-            className="p-1.5 sm:px-3 sm:py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-semibold text-amber-300 flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-sm group animate-fadeIn"
-            title="Add sticky note to jot down study points"
+            id="btn-header-toggle-notepad"
+            onClick={onToggleNotepad}
+            className={`p-1.5 sm:px-3 sm:py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-sm group ${
+              isNotepadOpen
+                ? 'bg-amber-500 text-amber-950 border-amber-400 font-bold shadow-amber-500/20'
+                : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300'
+            }`}
+            title={isNotepadOpen ? 'Close study notepad' : 'Open left-side study notepad'}
           >
-            <StickyIcon className="w-4 h-4 text-amber-400 shrink-0 group-hover:rotate-6 transition-transform" />
-            <span className="hidden sm:inline font-medium">Add Note</span>
-            <Plus className="w-3 h-3 text-amber-300/80 -ml-0.5" />
-            {stickyNotesCount > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-[10px] font-bold text-amber-950 leading-tight">
-                {stickyNotesCount}
+            <StickyIcon className={`w-4 h-4 shrink-0 transition-transform ${isNotepadOpen ? 'text-amber-950' : 'text-amber-400 group-hover:scale-110'}`} />
+            <span className="hidden sm:inline font-medium">Notepad</span>
+            {(notesCount > 0 || stickyNotesCount > 0) && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold leading-tight ${
+                isNotepadOpen ? 'bg-amber-950 text-amber-300' : 'bg-amber-500 text-amber-950'
+              }`}>
+                {notesCount || stickyNotesCount}
               </span>
             )}
           </button>
