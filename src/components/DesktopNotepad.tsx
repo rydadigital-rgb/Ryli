@@ -675,7 +675,7 @@ export const DesktopNotepad: React.FC<DesktopNotepadProps> = ({
                         updatedAt: Date.now(),
                       });
                     }}
-                    placeholder={`Type or paste your study links, formulas, or reminders here...\n\nExample:\nGdrive\nGoogle Drive: Sign-in\n\nRyda Main Website\nhttps://rydadigital.com`}
+                    placeholder="Type or paste your study notes, formulas, pointers, or links here..."
                     className="w-full flex-1 min-h-full h-full bg-transparent resize-none outline-none text-xs sm:text-sm font-sans leading-relaxed text-zinc-100 placeholder:text-zinc-600 selection:bg-amber-500/30 selection:text-white"
                   />
                 ) : (
